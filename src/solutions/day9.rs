@@ -1,29 +1,24 @@
 use crate::AoCDay;
 
-use hashbrown::HashMap;
-use hashbrown::HashSet;
-
 pub struct Code;
 
 struct Mapping {
-    map: HashMap<(usize, usize), i32>,
+    map: Vec<i32>,
     x_size: usize,
     y_size: usize,
 }
 
 impl Mapping {
-    // 
-    // x = i % width;    // % is the "modulo operator", the remainder of i / width;
-    // y = i / width; 
+    #[inline(always)]
     fn from_str(input: &str) -> Self {
-        let mut map = HashMap::new();
+        let mut map = Vec::with_capacity(100 * 100);
         let mut y_size = 0;
         let mut x_size = 0;
         for (y, line) in input.lines().enumerate() {
-            y_size = y_size.max(y);
+            y_size = y_size.max(y + 1);
             for (x, num) in line.chars().enumerate() {
-                x_size = x_size.max(x);
-                map.insert((x, y), num.to_string().parse::<i32>().unwrap());
+                x_size = x_size.max(x + 1);
+                map.push(num.to_string().parse::<i32>().unwrap());
             }
         }
         Mapping {
@@ -32,26 +27,38 @@ impl Mapping {
             y_size,
         }
     }
-    fn get(&self, x: usize, y: usize) -> Option<&i32> {
-        self.map.get(&(x, y))
+    #[inline(always)]
+    fn get(&self, x: usize, y: usize) -> Option<i32> {
+        if x >= self.x_size || y >= self.y_size {
+            None
+        } else {
+            Some(self.map[x + (self.x_size * y)])
+        }
     }
-    fn get_low_points(&self) -> Vec<((usize, usize), &i32)> {
+    #[inline(always)]
+    fn set(&mut self, x: usize, y: usize, val: i32) {
+        if x < self.x_size && y < self.y_size {
+            self.map[x + (self.x_size * y)] = val;
+        }
+    }
+    #[inline(always)]
+    fn get_low_points(&self) -> Vec<((usize, usize), i32)> {
         let mut low_points = vec![];
-        for y in 0..=self.y_size {
-            for x in 0..=self.x_size {
+        for y in 0..self.y_size {
+            for x in 0..self.x_size {
                 let curr = self.get(x, y).unwrap();
                 let up = if y == 0 {
-                    &999
+                    99
                 } else {
-                    self.get(x, y - 1).unwrap_or(&999)
+                    self.get(x, y - 1).unwrap_or(99)
                 };
                 let left = if x == 0 {
-                    &999
+                    99
                 } else {
-                    self.get(x - 1, y).unwrap_or(&999)
+                    self.get(x - 1, y).unwrap_or(99)
                 };
-                let down = self.get(x, y + 1).unwrap_or(&999);
-                let right = self.get(x + 1, y).unwrap_or(&999);
+                let down = self.get(x, y + 1).unwrap_or(99);
+                let right = self.get(x + 1, y).unwrap_or(99);
                 if curr < up && curr < left && curr < down && curr < right {
                     low_points.push(((x, y), curr));
                 }
@@ -59,65 +66,56 @@ impl Mapping {
         }
         low_points
     }
-
-    fn get_next_coords(
-        &self,
-        seent: &HashSet<(usize, usize)>,
-        x: usize,
-        y: usize,
-    ) -> Option<(usize, usize)> {
+    #[inline(always)]
+    fn get_next_coords(&self, x: usize, y: usize) -> Option<(usize, usize)> {
         let next = self.get(x, y)?;
-
-        if !seent.contains(&(x, y)) && *next != 9 {
+        if next != 9 {
             Some((x, y))
         } else {
             None
         }
     }
-
-    fn get_product_of_top_three_basins_by_size(&self) -> i32 {
+    #[inline(always)]
+    fn get_product_of_top_three_basins_by_size(mut self) -> i32 {
+        // For performance reasons, we're going to mark the visited points in-place,
+        // so we'll move the mapping in this method so no one else can use it.
         let mut one = 0;
         let mut two = 0;
         let mut three = 0;
-        let mut seent = HashSet::new();
         let low_points = self.get_low_points();
-        for ((x,y), _) in low_points {
+        for ((x, y), _) in low_points {
             let mut stack = vec![(x, y)];
             let mut current_basin_size = 0;
             while !stack.is_empty() {
                 let (x, y) = stack.pop().unwrap();
 
-                //  TODO: WHY IS THIS NECESSARY?
-                if seent.contains(&(x,y)) {
-                    continue;
+                if let Some(num) = self.get(x, y) {
+                    if num == -1 {
+                        continue;
+                    }
                 }
                 current_basin_size += 1;
-                seent.insert((x, y));
+                self.set(x, y, -1);
 
-                //  TODO clean up!
                 if x != 0 {
-                    let next = self.get_next_coords(&seent, x - 1, y);
-                    if let Some(coords) = next {
+                    if let Some(coords) = self.get_next_coords(x - 1, y) {
                         stack.push(coords);
                     }
                 };
                 if y != 0 {
-                    let next = self.get_next_coords(&seent, x, y - 1);
-                    if let Some(coords) = next {
+                    if let Some(coords) = self.get_next_coords(x, y - 1) {
                         stack.push(coords);
                     }
                 };
-                let next = self.get_next_coords(&seent, x + 1, y);
-                if let Some(coords) = next {
+                if let Some(coords) = self.get_next_coords(x + 1, y) {
                     stack.push(coords);
                 };
 
-                let next = self.get_next_coords(&seent, x, y + 1);
-                if let Some(coords) = next {
+                if let Some(coords) = self.get_next_coords(x, y + 1) {
                     stack.push(coords);
                 };
             }
-            
+
             if current_basin_size > one {
                 three = two;
                 two = one;
@@ -128,7 +126,6 @@ impl Mapping {
             } else if current_basin_size > three {
                 three = current_basin_size;
             }
-
         }
 
         one * two * three
@@ -137,18 +134,18 @@ impl Mapping {
 
 impl AoCDay for Code {
     fn part1(&self, input: &str, _extra_args: &[String]) -> String {
-        let map = Mapping::from_str(input);
-        let low_points = map.get_low_points();
-        let answer: i32 = low_points.iter().map(|(_, x)| 1 + *x).sum();
+        let answer: i32 = Mapping::from_str(input)
+            .get_low_points()
+            .iter()
+            .map(|(_, x)| 1 + *x)
+            .sum();
         debug_assert_eq!(answer, 591);
-        format!("{}", answer) // 591/~2000
+        format!("{}", answer) // 591/~800μs
     }
 
     fn part2(&self, input: &str, _extra_args: &[String]) -> String {
-        let map = Mapping::from_str(input);
-        let answer = map.get_product_of_top_three_basins_by_size();
-
+        let answer = Mapping::from_str(input).get_product_of_top_three_basins_by_size();
         debug_assert_eq!(answer, 1113424);
-        format!("{:?}", answer) // 1113424/~3000μs
+        format!("{:?}", answer) // 1113424/~1200μs
     }
 }

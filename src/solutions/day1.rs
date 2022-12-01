@@ -3,7 +3,7 @@ use crate::AoCDay;
 pub struct Code;
 
 impl AoCDay for Code {
-    fn part1(&self, input: &str, _extra_argss: &[String]) -> String {
+    fn part1(&self, input: &str, _extra_args: &[String]) -> String {
         let mut previous = None;
         let mut increases: u64 = 0;
         for line in input.lines() {
@@ -33,7 +33,8 @@ impl AoCDay for Code {
         // Basically, keep a rolling window of the past three numbers,
         // kinda like a ring buffer. `window_index` tracks the oldest
         // entry, allowing us to swap in the newest entry. This is
-        // a bit verbose, but faster than a
+        // a bit verbose, but maybe a bit faster than looking behind
+        // us in the vec every time.
         let mut increases: u64 = 0;
         let mut window_index = 0;
         let mut window = [lines[0], lines[1], lines[2]];

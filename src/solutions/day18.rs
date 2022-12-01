@@ -4,6 +4,9 @@ use std::{
     ops::Add,
 };
 
+use itertools::Itertools;
+use rayon::prelude::*;
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -82,30 +85,6 @@ impl SnailFish {
     fn from_line(line: &str) -> Self {
         parse(line).unwrap().1
     }
-    // fn print_tree(&self) -> String {
-    //     let mut buffer = vec![];
-    //     self.print_tree_helper("", "", &mut buffer);
-    //     buffer.join("")
-    // }
-    // fn print_tree_helper(&self, prefix: &str, children_prefix: &str, buffer: &mut Vec<String>) {
-    //     buffer.push(prefix.to_string());
-    //     if let SnailFish::Number(n) = self {
-    //         buffer.push(format!("{}", n));
-    //     }
-    //     buffer.push("\n".to_string());
-    //     if let SnailFish::Pair(left, right) = self {
-    //         left.print_tree_helper(
-    //             &format!("{}├── ", children_prefix),
-    //             &format!("{}│   ", children_prefix),
-    //             buffer,
-    //         );
-    //         right.print_tree_helper(
-    //             &format!("{}└── ", children_prefix),
-    //             &format!("{}    ", children_prefix),
-    //             buffer,
-    //         );
-    //     }
-    // }
     fn magnitude(&self) -> i32 {
         match self {
             SnailFish::Number(n) => *n,
@@ -193,7 +172,6 @@ impl SnailFish {
                 return Some((Side::Unknown, left, right));
             }
         }
-
         if let SnailFish::Pair(left, _) = self {
             if let Some((mutated, left_num, right_num)) = left.explode(depth + 1) {
                 match mutated {
@@ -211,7 +189,6 @@ impl SnailFish {
                 }
             }
         };
-
         if let SnailFish::Pair(_, right) = self {
             if let Some((mutated, left_num, right_num)) = right.explode(depth + 1) {
                 match mutated {
@@ -229,146 +206,7 @@ impl SnailFish {
                 }
             }
         };
-
         None
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    #[test]
-    fn test_explode() {
-        let tests = [
-            ("[[[[[9,8],1],2],3],4],", "[[[[0,9],2],3],4]"),
-            ("[7,[6,[5,[4,[3,2]]]]]", "[7,[6,[5,[7,0]]]]"),
-            ("[[6,[5,[4,[3,2]]]],1]", "[[6,[5,[7,0]]],3]"),
-            (
-                "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]",
-                "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
-            ),
-            (
-                "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]",
-                "[[3,[2,[8,0]]],[9,[5,[7,0]]]]",
-            ),
-            (
-                "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]",
-                "[[[[0,7],4],[7,[[8,4],9]]],[1,1]]",
-            ),
-            (
-                "[[[[0,7],4],[7,[[8,4],9]]],[1,1]]",
-                "[[[[0,7],4],[15,[0,13]]],[1,1]]",
-            ),
-            (
-                "[[[[0,7],4],[[7,8],[0,[6,7]]]],[1,1]]",
-                "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]",
-            ),
-            (
-                "[[[[4,0],[5,0]],[[[4,5],[2,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]]",
-                // "[[[[4,0],[5,0]],[[0,[2,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]]",
-                "[[[[4,0],[5,4]],[[0,[7,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]]",
-                // [[[[4,0],[5,4]],[[0,[2,11]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]]
-            ),
-        ];
-
-        for (input, expected) in tests {
-            let mut snail = SnailFish::from_line(input);
-            snail.explode(1);
-            assert_eq!(format!("{}", snail), expected);
-        }
-    }
-
-    #[test]
-    fn test_split() {
-        let tests = [
-            (
-                "[[[[0,7],4],[15,[0,13]]],[1,1]]",
-                "[[[[0,7],4],[[7,8],[0,13]]],[1,1]]",
-            ),
-            (
-                "[[[[0,7],4],[[7,8],[0,13]]],[1,1]]",
-                "[[[[0,7],4],[[7,8],[0,[6,7]]]],[1,1]]",
-            ),
-        ];
-
-        for (input, expected) in tests {
-            let mut snail = SnailFish::from_line(input);
-            snail.split();
-            assert_eq!(format!("{}", snail), expected);
-        }
-    }
-    #[test]
-    fn test_magnitude() {
-        let tests = [
-            ("[[1,2],[[3,4],5]]", 143),
-            ("[[[[0,7],4],[[7,8],[6,0]]],[8,1]]", 1384),
-            ("[[[[1,1],[2,2]],[3,3]],[4,4]]", 445),
-            ("[[[[3,0],[5,3]],[4,4]],[5,5]]", 791),
-            ("[[[[5,0],[7,4]],[5,5]],[6,6]]", 1137),
-            (
-                "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]",
-                3488,
-            ),
-        ];
-        for (input, expected) in tests {
-            assert_eq!(SnailFish::from_line(input).magnitude(), expected);
-        }
-    }
-    #[test]
-    fn test_add() {
-        let tests = [
-    (
-        "[1,1]\n[2,2]\n[3,3]\n[4,4]",
-        "[[[[1,1],[2,2]],[3,3]],[4,4]]"
-    ),
-    (
-        "[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]\n[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]",
-        "[[[[4,0],[5,4]],[[7,7],[6,0]]],[[8,[7,7]],[[7,9],[5,0]]]]",
-    ),
-    (
-        "[[[[4,0],[5,4]],[[7,7],[6,0]]],[[8,[7,7]],[[7,9],[5,0]]]]\n[[2,[[0,8],[3,4]]],[[[6,7],1],[7,[1,6]]]]",
-        "[[[[6,7],[6,7]],[[7,7],[0,7]]],[[[8,7],[7,7]],[[8,8],[8,0]]]]"
-    ),
-    (
-        "[[[[6,7],[6,7]],[[7,7],[0,7]]],[[[8,7],[7,7]],[[8,8],[8,0]]]]\n[[[[2,4],7],[6,[0,5]]],[[[6,8],[2,8]],[[2,1],[4,5]]]]",
-        "[[[[7,0],[7,7]],[[7,7],[7,8]]],[[[7,7],[8,8]],[[7,7],[8,7]]]]"
-    ),
-    (
-        "[[[[7,0],[7,7]],[[7,7],[7,8]]],[[[7,7],[8,8]],[[7,7],[8,7]]]]\n[7,[5,[[3,8],[1,4]]]]",
-        "[[[[7,7],[7,8]],[[9,5],[8,7]]],[[[6,8],[0,8]],[[9,9],[9,0]]]]"
-    ),
-    (
-        "[[[[7,7],[7,8]],[[9,5],[8,7]]],[[[6,8],[0,8]],[[9,9],[9,0]]]]\n[[2,[2,2]],[8,[8,1]]]",
-        "[[[[6,6],[6,6]],[[6,0],[6,7]]],[[[7,7],[8,9]],[8,[8,1]]]]"
-    ),
-    (
-        "[[[[6,6],[6,6]],[[6,0],[6,7]]],[[[7,7],[8,9]],[8,[8,1]]]]\n[2,9]",
-        "[[[[6,6],[7,7]],[[0,7],[7,7]]],[[[5,5],[5,6]],9]]"
-    ),
-    (
-        "[[[[6,6],[7,7]],[[0,7],[7,7]]],[[[5,5],[5,6]],9]]\n[1,[[[9,3],9],[[9,0],[0,7]]]]",
-        "[[[[7,8],[6,7]],[[6,8],[0,8]]],[[[7,7],[5,0]],[[5,5],[5,6]]]]"
-    ),
-    (
-        "[[[[7,8],[6,7]],[[6,8],[0,8]]],[[[7,7],[5,0]],[[5,5],[5,6]]]]\n[[[5,[7,4]],7],1]",
-        "[[[[7,7],[7,7]],[[8,7],[8,7]]],[[[7,0],[7,7]],9]]"
-    ),
-    (
-        "[[[[7,7],[7,7]],[[8,7],[8,7]]],[[[7,0],[7,7]],9]]\n[[[[4,2],2],6],[8,7]]",
-        "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]"
-    )
-        ];
-        for (input, expected) in tests {
-            let answer = input
-                .lines()
-                .map(|line| {
-                    let (_, pairs) = parse(line).unwrap();
-                    // pairs.reduce()
-                    pairs
-                })
-                .sum::<SnailFish>();
-            assert_eq!(format!("{}", answer), expected);
-        }
     }
 }
 
@@ -390,25 +228,24 @@ impl AoCDay for Code {
             .sum::<SnailFish>()
             .magnitude();
 
-        format!("{}", answer)
+        debug_assert_eq!(answer, 3699);
+        format!("{}", answer) // 3699/3500μs
     }
 
-    fn part2(&self, input: &str, _extra_args: &[String]) -> String {
-        let mut max = 0;
+    fn part2(&self, input: &str, _extra_args: &[String]) -> String {    
         let inputs = input
             .lines()
             .map(SnailFish::from_line)
+            .combinations(2)
             .collect::<Vec<_>>();
-        
-        for x in inputs.iter() {
-            for y in inputs.iter() {
-                let mag_one = (x + y).magnitude();
-                let mag_two = (y + x).magnitude();
-                max = max.max(mag_one).max(mag_two);
-            }
-        }
 
-        let answer = max;
-        format!("{}", answer)
+        let answer = inputs.par_iter().map(|combos| {
+            let mag_one = (combos[0].clone() + combos[1].clone()).magnitude();
+            let mag_two = (combos[1].clone() + combos[0].clone()).magnitude();
+            mag_one.max(mag_two)
+        }).max().unwrap();
+
+        debug_assert_eq!(answer, 4735);
+        format!("{}", answer) //4735/26896μs
     }
 }

@@ -1,6 +1,3 @@
-use lazy_static::lazy_static;
-use regex::Regex;
-
 use crate::AoCDay;
 
 use nom::{
@@ -37,27 +34,8 @@ fn parse_command(input: &str) -> IResult<&str, Command> {
     }
 }
 
-#[allow(unused)]
-fn parse_command_re(input: &str) -> Result<Command, ()> {
-    // nom seems just as fast, but gonna leave this here as a quick
-    // reference in case I need to do some regexing later
-    lazy_static! {
-        static ref RE: Regex = Regex::new("(forward|down|up)\\s\\d+").unwrap();
-    }
-    let capture = RE.captures(input).unwrap();
-    let dir = capture.get(1).unwrap().as_str();
-    let num = capture.get(2).unwrap().as_str();
-    let num = num.trim().parse::<i32>().unwrap();
-    match dir {
-        "forward" => Ok(Command::Forward(num)),
-        "down" => Ok(Command::Down(num)),
-        "up" => Ok(Command::Up(num)),
-        _ => unreachable!(),
-    }
-}
-
 impl AoCDay for Code {
-    fn part1(&self, input: &str, _extra_argss: &[String]) -> String {
+    fn part1(&self, input: &str, _extra_args: &[String]) -> String {
         let mut pos = Position {
             horizontal: 0,
             depth: 0,

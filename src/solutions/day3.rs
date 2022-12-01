@@ -77,7 +77,7 @@ fn calculate_rating(input: &[&str], counts: &[(u64, u64)], lt: bool, gt: bool, e
 }
 
 impl AoCDay for Code {
-    fn part1(&self, input: &str, _extra_argss: &[String]) -> String {
+    fn part1(&self, input: &str, _extra_args: &[String]) -> String {
         let counts = get_counts(input);
         let gamma = counts
             .iter()

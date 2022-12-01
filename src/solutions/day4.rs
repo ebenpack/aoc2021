@@ -1,123 +1,118 @@
 use crate::AoCDay;
 
+use nalgebra::{matrix, SMatrix};
+
 pub struct Code;
 
-#[derive(Debug, Clone, Copy)]
-enum Spot {
-    Hit(i32),
-    NoHit(i32),
-}
-
-impl Spot {
-    fn num(&self) -> i32 {
-        match self {
-            Spot::Hit(n) => *n,
-            Spot::NoHit(n) => *n,
-        }
-    }
-    fn is_hit(&self) -> bool {
-        matches!(self, Spot::Hit(_))
-    }
-}
-
-impl Default for Spot {
-    fn default() -> Self {
-        Spot::NoHit(0)
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
 struct Board {
-    rows: [[Spot; 5]; 5],
-    columns: [[Spot; 5]; 5],
+    board: SMatrix<i8, 5, 5>,
+    row_counts: [u8; 5],
+    column_counts: [u8; 5],
 }
 
 impl Board {
-    fn from_line(&mut self, line: &str, row: usize) {
-        for (column, num) in line
-        .trim()
-        .split(' ')
-        .filter(|num| !num.is_empty())
-        .map(|num| num.parse::<i32>().unwrap())
-        .enumerate()
-    {
-        self.rows[row][column] = Spot::NoHit(num);
-        self.columns[column][row] = Spot::NoHit(num);
-    }
-    }
-    fn sum_of_unmarked(&self) -> i32 {
-        self.rows
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .filter(|s| !s.is_hit())
-                    .map(|s| s.num())
-                    .sum::<i32>()
-            })
-            .sum()
-    }
-    fn mark_hit(&mut self, guess: i32) {
-        for row in 0..5 {
-            for column in 0..5 {
-                match self.rows[row][column] {
-                    Spot::NoHit(cell_num) if cell_num == guess => {
-                        self.rows[row][column] = Spot::Hit(cell_num)
-                    }
-                    _ => {}
-                }
-                match self.columns[column][row] {
-                    Spot::NoHit(cell_num) if cell_num == guess => {
-                        self.columns[column][row] = Spot::Hit(cell_num)
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
+    #[inline(always)]
     fn check(&self) -> bool {
-        self.rows.iter().any(|row| row.iter().all(|s| s.is_hit()))
-            || self.columns.iter().any(|row| row.iter().all(|s| s.is_hit()))
+        matches!(
+            self.row_counts.iter().find(|&row_count| *row_count == 5),
+            Some(_)
+        ) || matches!(
+            self.column_counts
+                .iter()
+                .find(|&column_count| *column_count == 5),
+            Some(_)
+        )
+    }
+    #[inline(always)]
+    fn sum_of_unmarked(&self) -> i32 {
+        self.board
+            .iter()
+            .filter(|&n| *n != -1)
+            .map(|n| i32::from(*n))
+            .sum()
     }
 }
 
-fn check_boards(boards: &[Board]) -> Option<Board> {
+#[inline(always)]
+fn check_boards(boards: &[Board]) -> Option<i32> {
     for board in boards {
         if board.check() {
-            return Some(*board);
+            return Some(board.sum_of_unmarked());
         }
     }
     None
 }
 
-impl AoCDay for Code {
-    fn part1(&self, input: &str, _extra_argss: &[String]) -> String {
-        let input = input.lines().collect::<Vec<_>>();
-        let numbers = input[0];
-
-        let mut boards: Vec<Board> = vec![];
-        let mut board: Board = Default::default();
-        let mut row = 0;
-        for line in input.iter().skip(1).skip_while(|line| line.is_empty()) {
-            if line.is_empty() {
-                boards.push(board);
-                board = Default::default();
-                row = 0;
-            } else {
-                board.from_line(line, row);
-                row += 1;
+#[inline(always)]
+fn mark_hits(boards: &mut [Board], number: i8) {
+    for board in boards.iter_mut() {
+        for (i, cell) in board.board.iter_mut().enumerate() {
+            if *cell == number {
+                *cell = -1;
+                let x = i % 5;
+                let y = (i / 5) % 5;
+                board.row_counts[x] += 1;
+                board.column_counts[y] += 1;
             }
         }
+    }
+}
 
-        for quess in numbers.split(',').collect::<Vec<_>>() {
-            let guess = quess.parse::<i32>().unwrap();
-            for boards_index in 0..boards.len() {
-                boards[boards_index].mark_hit(guess);
+#[inline(always)]
+fn numbers_and_boards_from_input(input: &str) -> (&str, Vec<Board>) {
+    let input = input.lines().collect::<Vec<_>>();
+    let numbers = input[0];
+    let mut boards = vec![];
+    let mut board = matrix![
+        0,0,0,0,0;
+        0,0,0,0,0;
+        0,0,0,0,0;
+        0,0,0,0,0;
+        0,0,0,0,0
+    ];
+    let mut row = 0;
+    for line in input.iter().skip(1).skip_while(|line| line.is_empty()) {
+        if line.is_empty() {
+            boards.push(Board {
+                board,
+                row_counts: [0; 5],
+                column_counts: [0; 5],
+            });
+            board = matrix![
+                0,0,0,0,0;
+                0,0,0,0,0;
+                0,0,0,0,0;
+                0,0,0,0,0;
+                0,0,0,0,0
+            ];
+            row = 0;
+        } else {
+            for (column, num) in line
+                .trim()
+                .split(' ')
+                .filter(|num| !num.is_empty())
+                .map(|num| num.parse::<i8>().unwrap())
+                .enumerate()
+            {
+                board[(row, column)] = num;
             }
-            if let Some(board) = check_boards(&boards) {
-                let sum_of_unmarked = board.sum_of_unmarked();
-                let answer = sum_of_unmarked * guess;
-                assert_eq!(answer, 38594);
-                return format!("{}", answer); // 38594/~270μs
+            row += 1;
+        }
+    }
+    (numbers, boards)
+}
+
+impl AoCDay for Code {
+    fn part1(&self, input: &str, _extra_args: &[String]) -> String {
+        let (numbers, mut boards) = numbers_and_boards_from_input(input);
+
+        for number in numbers.split(',') {
+            let number = number.parse::<i8>().unwrap();
+            mark_hits(&mut boards, number);
+            if let Some(sum_of_unmarked) = check_boards(&boards) {
+                let answer = sum_of_unmarked * i32::from(number);
+                debug_assert_eq!(answer, 38594);
+                return format!("{}", answer); // 38594/~250μs
             }
         }
 
@@ -125,28 +120,12 @@ impl AoCDay for Code {
     }
 
     fn part2(&self, input: &str, _extra_args: &[String]) -> String {
-        let input = input.lines().collect::<Vec<_>>();
-        let numbers = input[0];
+        let (numbers, mut boards) = numbers_and_boards_from_input(input);
 
-        let mut boards: Vec<Board> = vec![];
-        let mut board: Board = Default::default();
-        let mut row = 0;
-        for line in input.iter().skip(1).skip_while(|line| line.is_empty()) {
-            if line.is_empty() {
-                boards.push(board);
-                board = Default::default();
-                row = 0;
-            } else {
-                board.from_line(line, row);
-                row += 1;
-            }
-        }
+        for number in numbers.split(',') {
+            let number = number.parse::<i8>().unwrap();
+            mark_hits(&mut boards, number);
 
-        for quess in numbers.split(',').collect::<Vec<_>>() {
-            let guess = quess.parse::<i32>().unwrap();
-            for boards_index in 0..boards.len() {
-                boards[boards_index].mark_hit(guess);
-            }
             let mut boards_len = boards.len();
             if boards_len > 1 {
                 boards = boards
@@ -161,11 +140,11 @@ impl AoCDay for Code {
                     })
                     .collect::<Vec<Board>>();
             } else if boards[0].check() {
-                let sum_of_unmarked: i32 = boards[0].sum_of_unmarked();
+                let sum_of_unmarked = boards[0].sum_of_unmarked();
 
-                let answer = sum_of_unmarked * guess;
-                assert_eq!(answer, 21184);
-                return format!("{}", sum_of_unmarked * guess); // 21184/~970μs
+                let answer = sum_of_unmarked * i32::from(number);
+                debug_assert_eq!(answer, 21184);
+                return format!("{}", answer); // 21184/~440μs
             }
         }
 

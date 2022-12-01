@@ -1,0 +1,30 @@
+[package]
+name = "aoc2021"
+version = "0.1.0"
+authors = ["ebenpack"]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = true
+opt-level = 3
+overflow-checks = false
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+hashbrown = "0.11.2"
+nalgebra = "0.29.0"
+time = "0.3.5"
+nom = "7.1.0"
+structopt = "0.3.20"
+color-eyre = "0.5.8"
+dotenv = "0.15.0"
+pathfinding = "3.0.5"
+rayon = "1.5.1"
+itertools = "0.10.3"
+
+# May be unused
+
+num-bigint = "0.4.3"
+rand = "0.7.3"
